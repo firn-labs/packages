@@ -22,7 +22,7 @@ pool="$out/pool/main/u/unkai-mail"
 bin="$out/dists/stable/main/binary-amd64"
 mkdir -p "$pool" "$bin"
 
-for tag in $(echo "$TAGS" | tr -d '[]", '); do
+for tag in $(echo "$TAGS" | tr -d '[]"' | tr ',' ' '); do
   [ -n "$tag" ] || continue
   ver="${tag#v}"
   asset="Unkai-Mail_${ver}_amd64.deb"

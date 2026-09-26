@@ -17,7 +17,7 @@ source_repo="${SOURCE_REPO:-firn-labs/unkai-mail}"
 fpr="$(bash "$here/../../scripts/gpg-import.sh")"
 mkdir -p "$out"
 
-for tag in $(echo "$TAGS" | tr -d '[]", '); do
+for tag in $(echo "$TAGS" | tr -d '[]"' | tr ',' ' '); do
   [ -n "$tag" ] || continue
   ver="${tag#v}"
   asset="Unkai-Mail-${ver}-1.x86_64.rpm"

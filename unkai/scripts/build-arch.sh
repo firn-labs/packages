@@ -32,7 +32,7 @@ else
   curl -sSfL --retry 3 -o "$work/unkai-mail-bin/PKGBUILD" "$raw/unkai-mail-bin/PKGBUILD"
 fi
 
-for tag in $(echo "$TAGS" | tr -d '[]", '); do
+for tag in $(echo "$TAGS" | tr -d '[]"' | tr ',' ' '); do
   [ -n "$tag" ] || continue
   echo "::group::arch $tag"
   bash "$work/render.sh" "$tag" "$work/$tag"

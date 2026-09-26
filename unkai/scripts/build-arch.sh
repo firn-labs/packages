@@ -15,6 +15,9 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_repo="${SOURCE_REPO:-firn-labs/unkai-mail}"
 raw="https://raw.githubusercontent.com/${source_repo}/main/packaging/aur"
 
+# GitHub job containers run with HOME=/github/home while the key is
+# imported into the passwd home; pin one keyring for gpg AND rpmsign.
+export GNUPGHOME="${GNUPGHOME:-$(getent passwd "$(id -u)" | cut -d: -f6)/.gnupg}"
 fpr="$(bash "$here/../../scripts/gpg-import.sh")"
 export GPGKEY="$fpr"
 mkdir -p "$out"

@@ -14,6 +14,9 @@ out="$(realpath -m "${1:?usage: build-rpm.sh <out-dir>}")"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_repo="${SOURCE_REPO:-firn-labs/unkai-mail}"
 
+# GitHub job containers run with HOME=/github/home while the key is
+# imported into the passwd home; pin one keyring for gpg AND rpmsign.
+export GNUPGHOME="${GNUPGHOME:-$(getent passwd "$(id -u)" | cut -d: -f6)/.gnupg}"
 fpr="$(bash "$here/../../scripts/gpg-import.sh")"
 mkdir -p "$out"
 
@@ -28,7 +31,7 @@ done
 
 # Embed a signature in every rpm so gpgcheck=1 passes.  The key has
 # no passphrase, so rpm's default `--pinentry-mode error` is fine.
-rpmsign --define "_gpg_name $fpr" --addsign "$out"/*.rpm
+rpmsign --define "_gpg_name $fpr" --define "_gpg_path $GNUPGHOME" --addsign "$out"/*.rpm
 # Verify with the public key in rpm's own keyring — without the
 # import, --checksig reports NOKEY even for a good signature.
 gpg --batch --armor --export "$fpr" > "$out/.pubkey.asc"

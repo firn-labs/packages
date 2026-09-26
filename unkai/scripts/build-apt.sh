@@ -17,6 +17,9 @@ out="$(realpath -m "${1:?usage: build-apt.sh <out-dir>}")"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_repo="${SOURCE_REPO:-firn-labs/unkai-mail}"
 
+# GitHub job containers run with HOME=/github/home while the key is
+# imported into the passwd home; pin one keyring for gpg AND rpmsign.
+export GNUPGHOME="${GNUPGHOME:-$(getent passwd "$(id -u)" | cut -d: -f6)/.gnupg}"
 fpr="$(bash "$here/../../scripts/gpg-import.sh")"
 pool="$out/pool/main/u/unkai-mail"
 bin="$out/dists/stable/main/binary-amd64"

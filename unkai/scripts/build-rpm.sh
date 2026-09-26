@@ -7,14 +7,14 @@
 #
 # Needs createrepo_c, rpm-sign and gnupg2 (Fedora container in CI).
 #
-#   TAGS='["v0.5.0"]' PACKAGING_GPG_PRIVATE_KEY=... scripts/build-rpm.sh out/rpm
+#   TAGS='["v0.5.0"]' PACKAGING_GPG_PRIVATE_KEY=... unkai/scripts/build-rpm.sh out/unkai/rpm
 set -euo pipefail
 
 out="$(realpath -m "${1:?usage: build-rpm.sh <out-dir>}")"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_repo="${SOURCE_REPO:-firn-labs/unkai-mail}"
 
-fpr="$(bash "$here/gpg-import.sh")"
+fpr="$(bash "$here/../../scripts/gpg-import.sh")"
 mkdir -p "$out"
 
 for tag in $(echo "$TAGS" | tr -d '[]", '); do

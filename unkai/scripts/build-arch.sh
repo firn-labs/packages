@@ -7,7 +7,7 @@
 # key, and added to a signed repo database.  Must run as a non-root
 # user (makepkg insists).
 #
-#   TAGS='["v0.5.0"]' PACKAGING_GPG_PRIVATE_KEY=... scripts/build-arch.sh out/arch
+#   TAGS='["v0.5.0"]' PACKAGING_GPG_PRIVATE_KEY=... unkai/scripts/build-arch.sh out/unkai/arch
 set -euo pipefail
 
 out="$(realpath -m "${1:?usage: build-arch.sh <out-dir>}")/x86_64"
@@ -15,7 +15,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_repo="${SOURCE_REPO:-firn-labs/unkai-mail}"
 raw="https://raw.githubusercontent.com/${source_repo}/main/packaging/aur"
 
-fpr="$(bash "$here/gpg-import.sh")"
+fpr="$(bash "$here/../../scripts/gpg-import.sh")"
 export GPGKEY="$fpr"
 mkdir -p "$out"
 

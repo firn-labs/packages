@@ -10,14 +10,14 @@
 # `signed-by=` works.  apt picks the highest version when several
 # are in the pool.
 #
-#   TAGS='["v0.5.0"]' PACKAGING_GPG_PRIVATE_KEY=... scripts/build-apt.sh out/apt
+#   TAGS='["v0.5.0"]' PACKAGING_GPG_PRIVATE_KEY=... unkai/scripts/build-apt.sh out/unkai/apt
 set -euo pipefail
 
 out="$(realpath -m "${1:?usage: build-apt.sh <out-dir>}")"
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source_repo="${SOURCE_REPO:-firn-labs/unkai-mail}"
 
-fpr="$(bash "$here/gpg-import.sh")"
+fpr="$(bash "$here/../../scripts/gpg-import.sh")"
 pool="$out/pool/main/u/unkai-mail"
 bin="$out/dists/stable/main/binary-amd64"
 mkdir -p "$pool" "$bin"

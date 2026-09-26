@@ -1,0 +1,160 @@
+name: Build & deploy package repositories
+
+# Rebuilds the whole site from scratch and deploys it to GitHub Pages:
+#
+#   arch/x86_64/   pacman repository  (unkai-mail.db + signed packages)
+#   apt/           APT repository     (dists/stable + pool, InRelease signed)
+#   rpm/           dnf/zypper repo    (repodata + signed rpms)
+#   keys/          the packaging GPG key (.asc, .gpg, FINGERPRINT)
+#
+# Stateless by design: every run lists the newest KEEP published,
+# non-prerelease releases of firn-labs/unkai-mail, downloads their
+# .deb/.rpm assets, builds the Arch package from the .deb with the
+# PKGBUILD in the main repo, signs everything with the packaging key,
+# and publishes the result with actions/deploy-pages.  Nothing is
+# committed here, so the repo never grows and a broken deploy is
+# fixed by simply re-running.
+#
+# Triggers:
+#   repository_dispatch  — sent by unkai-mail's packages.yml when a
+#                          release is *published* (the ship moment)
+#   workflow_dispatch    — manual re-run / first bootstrap
+#   schedule             — daily safety net in case a dispatch was lost
+#
+# Secret: PACKAGING_GPG_PRIVATE_KEY — ASCII-armoured private key
+# WITHOUT a passphrase (see README.md for how to create it).
+
+on:
+  repository_dispatch:
+    types: [release-published]
+  workflow_dispatch:
+  schedule:
+    - cron: "23 6 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: firn-labs/unkai-mail
+  KEEP: "3"
+  SITE_URL: https://firn-labs.github.io/unkai-packages
+
+jobs:
+  versions:
+    name: Resolve releases
+    runs-on: ubuntu-latest
+    outputs:
+      tags: ${{ steps.list.outputs.tags }}
+      latest: ${{ steps.list.outputs.latest }}
+    steps:
+      - name: Check signing key is configured
+        env:
+          KEY: ${{ secrets.PACKAGING_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::PACKAGING_GPG_PRIVATE_KEY is not set — see README.md"
+            exit 1
+          fi
+      - id: list
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tags=$(gh release list --repo "$SOURCE_REPO" \
+                   --exclude-drafts --exclude-pre-releases \
+                   --limit "$KEEP" --json tagName --jq '[.[].tagName]')
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+          echo "latest=$(echo "$tags" | jq -r '.[0]')" >> "$GITHUB_OUTPUT"
+          echo "Building for: $tags"
+
+  arch:
+    name: pacman repository
+    needs: versions
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - uses: actions/checkout@v7
+      - name: Prepare
+        run: |
+          pacman -Syu --noconfirm --needed sudo git curl
+          useradd -m builder
+          echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
+          chown -R builder .
+      # makepkg refuses to run as root, so the key is imported into
+      # the builder's keyring inside the script.
+      - name: Build + sign
+        env:
+          TAGS: ${{ needs.versions.outputs.tags }}
+          PACKAGING_GPG_PRIVATE_KEY: ${{ secrets.PACKAGING_GPG_PRIVATE_KEY }}
+        run: sudo -E -H -u builder bash scripts/build-arch.sh out/arch
+      - uses: actions/upload-artifact@v6
+        with:
+          name: arch
+          path: out/arch
+          if-no-files-found: error
+
+  apt:
+    name: APT repository
+    needs: versions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: sudo apt-get update && sudo apt-get install -y apt-utils gnupg
+      - name: Build + sign
+        env:
+          TAGS: ${{ needs.versions.outputs.tags }}
+          PACKAGING_GPG_PRIVATE_KEY: ${{ secrets.PACKAGING_GPG_PRIVATE_KEY }}
+        run: bash scripts/build-apt.sh out/apt
+      - uses: actions/upload-artifact@v6
+        with:
+          name: apt
+          path: out/apt
+          if-no-files-found: error
+
+  rpm:
+    name: dnf repository
+    needs: versions
+    runs-on: ubuntu-latest
+    container: fedora:latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: dnf install -y createrepo_c rpm-sign gnupg2 curl
+      - name: Build + sign
+        env:
+          TAGS: ${{ needs.versions.outputs.tags }}
+          PACKAGING_GPG_PRIVATE_KEY: ${{ secrets.PACKAGING_GPG_PRIVATE_KEY }}
+        run: bash scripts/build-rpm.sh out/rpm
+      - uses: actions/upload-artifact@v6
+        with:
+          name: rpm
+          path: out/rpm
+          if-no-files-found: error
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: [versions, arch, apt, rpm]
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v7
+        with:
+          path: _site
+      - name: Assemble site
+        env:
+          LATEST: ${{ needs.versions.outputs.latest }}
+          PACKAGING_GPG_PRIVATE_KEY: ${{ secrets.PACKAGING_GPG_PRIVATE_KEY }}
+        run: bash scripts/assemble.sh _site
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4
